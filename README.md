@@ -91,7 +91,7 @@ done
 *** unmounted /mnt
 ```
 
-**If it's more complex than that then, this script also allows you to open a chroot terminal on your target system**, run it with `-co` option:
+**If it's more complex than that, then this script also allows you to open a chroot terminal on your target system**, run it with `-co` option:
 
 ```bash
 sudo bash ./grubfix -co
