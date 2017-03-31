@@ -6,12 +6,25 @@
 ###########################################
 
 help="
-****** grubfix ******
-Usage:
-    grubfix /dev/sdXY
+****** grubfix (1.0.0) ******
+
+SYNOPSIS:
+	grubfix
+	grubfix [options]
+	grubfix /dev/sdXY
+
+USAGE:
+	1st form (gives a menu to select the device): 
+		grubfix
+	2nd form (takes a device id as parameter):
+		grubfix /dev/sdXY
 
 Where /dev/sdXY is the device id where your system is installed.
-X is a letter and Y is a number, A really id would look like: /dev/sdb1
+X is a letter and Y is a number, A device id would look like: /dev/sdb1
+
+OPTIONS:
+	-h, --help          : show help menu
+	-co, --chroot-only  : launch chroot terminal
 "
 
 msg_out(){
@@ -38,6 +51,45 @@ chkroot(){
 	fi
 }
 
+unmount(){
+	mounted=$(mount |awk '{print $3}')
+	if echo "$mounted" |grep -qF /mnt/sys; then
+		if umount /mnt/sys || umount -lf /mnt/sys; then
+		  msg_out "unmounted /mnt/sys"
+		else
+		  wrn_out "unmounting /mnt/sys failed"
+		fi
+	fi
+	if echo "$mounted" |grep -qF /mnt/proc; then
+		if umount /mnt/proc || umount -lf /mnt/proc; then
+		  msg_out "unmounted /mnt/proc"
+		else
+		  wrn_out "unmounting /mnt/proc failed"
+		fi
+	fi
+	if echo "$mounted" |grep -qF /mnt/dev/pts; then
+		if umount /mnt/dev/pts || umount -lf /mnt/dev/pts; then
+		  msg_out "unmounted /mnt/dev/pts"
+		else
+		  wrn_out "unmounting /mnt/dev/pts failed"
+		fi
+	fi
+	if echo "$mounted" |grep -qF /mnt/dev; then
+		if umount /mnt/dev || umount -lf /mnt/dev; then
+		  msg_out "unmounted /mnt/dev"
+		else
+		  wrn_out "unmounting /mnt/dev failed"
+		fi
+	fi
+	if echo "$mounted" |grep -qF /mnt; then
+		if umount /mnt || umount -lf /mnt; then
+		  msg_out "unmounted /mnt"
+		else
+		  wrn_out "unmounting /mnt failed"
+		fi
+	fi
+}
+
 confirm(){
   dev="$1"
   msg_out "Giving more info for confirmation"
@@ -55,7 +107,10 @@ confirm(){
 
 chkroot
 
+trap unmount SIGTERM EXIT SIGQUIT
+
 dev=
+chroot_only=false
 while [ $# -gt 0 ]
 do
   case "$1" in
@@ -63,6 +118,9 @@ do
       echo "$help"
       exit 1
       ;;
+    -co|--chroot-only)
+    	chroot_only=true
+    	;;
     *)
       if [ "$dev" != "" ]; then
         err_out "invalid option: '$1'"
@@ -116,33 +174,16 @@ mount --bind /dev /mnt/dev && msg_out "mounted /dev in /mnt/dev" || err_out "mou
 mount --bind /dev/pts /mnt/dev/pts && msg_out "mounted /dev/pts in /mnt/dev/pts" || err_out "mounting /dev/pts in /mnt/dev/pts failed"
 mount --bind /proc /mnt/proc && msg_out "mounted /proc in /mnt/proc" || err_out "mounting /proc in /mnt/proc failed"
 mount --bind /sys /mnt/sys && msg_out "mounted /sys in /mnt/sys" || err_out "mounting /sys in /mnt/sys failed"
-msg_out "running grub-install ${dev:0:-1} ..."
-chroot /mnt grub-install "${dev:0:-1}"
-msg_out "running update-grub ..."
-chroot /mnt update-grub
 
-if umount /mnt/sys || umount -lf /mnt/sys; then
-  msg_out "unmounted /mnt/sys"
+if ! $chroot_only; then
+	msg_out "running grub-install ${dev:0:-1} ..."
+	chroot /mnt grub-install "${dev:0:-1}"
+	msg_out "running update-grub ..."
+	chroot /mnt update-grub
 else
-  wrn_out "unmounting /mnt/sys failed"
+	xhost +
+	x-terminal-emulator -e "$SHELL -c 'chroot /mnt;exec bash;'" >/dev/null 2>&1 ||
+	xterm  -e "$SHELL -c 'chroot /mnt;exec bash;'" >/dev/null 2>&1
+	xhost -
 fi
-if umount /mnt/proc || umount -lf /mnt/proc; then
-  msg_out "unmounted /mnt/proc"
-else
-  wrn_out "unmounting /mnt/proc failed"
-fi
-if umount /mnt/dev/pts || umount -lf /mnt/dev/pts; then
-  msg_out "unmounted /mnt/dev/pts"
-else
-  wrn_out "unmounting /mnt/dev/pts failed"
-fi
-if umount /mnt/dev || umount -lf /mnt/dev; then
-  msg_out "unmounted /mnt/dev"
-else
-  wrn_out "unmounting /mnt/dev failed"
-fi
-if umount /mnt || umount -lf /mnt; then
-  msg_out "unmounted /mnt"
-else
-  wrn_out "unmounting /mnt failed"
-fi
+

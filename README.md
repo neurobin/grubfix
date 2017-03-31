@@ -95,3 +95,11 @@ done
 *** unmounted /mnt
 ```
 
+**If it's more complex than that then, this script also allows you to open a chroot terminal on your target system**, run it with `-co` option:
+
+```bash
+sudo bash ./grubfix -co
+```
+
+It will not do any additional task other than opening a terminal window with chroot. You can then use that terminal to configure your target system and install or modify pacakges to correct problems.
+
