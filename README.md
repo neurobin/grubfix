@@ -33,8 +33,6 @@ Choose the device from the list where your system is installed.
 It will ask for confirmation:
 
 ```bash
-Choose a device (#?): 3
-
 *** you have chosen: /dev/sdb1
 
 *** Giving more info for confirmation
@@ -53,8 +51,6 @@ I/O size (minimum/optimal): 512 bytes / 512 bytes
 Confirm with 'y' if it's really the right device id.
 
 ```bash
-=== Please confirm (Y/n)?: y
-
 *** /dev/sdb1 confirmed...
 
 *** mounted /dev/sdb1 in /mnt
