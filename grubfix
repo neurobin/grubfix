@@ -1,0 +1,148 @@
+#!/bin/bash
+###########################################
+### 	   Grub Fix Script 		###
+### Copyright (C) 2017 Md Jahidul Hamid ###
+### 	 Released Under GPL3+		###
+###########################################
+
+help="
+****** grubfix ******
+Usage:
+    grubfix /dev/sdXY
+
+Where /dev/sdXY is the device id where your system is installed.
+X is a letter and Y is a number, A really id would look like: /dev/sdb1
+"
+
+msg_out(){
+	printf "\n*** $*\n" > /dev/stdout
+}
+
+err_out(){
+	printf "\nE: $*\n" > /dev/stderr
+}
+
+wrn_out(){
+	printf "\nW: $*\n" > /dev/stderr
+}
+
+err_exit(){
+	err_out "$*"
+	exit 1
+}
+
+chkroot(){
+	if [ "$(id -u)" != "0" ]; then
+	  err_out "root access required."
+	  exit 1
+	fi
+}
+
+confirm(){
+  dev="$1"
+  msg_out "Giving more info for confirmation"
+  msg_out "'fdisk -l $dev' says: \n$(fdisk -l "$dev")"
+  msg_out "'blkid $dev' says: \n$(blkid "$dev")"
+  echo
+  read -p "=== Please confirm (Y/n)?: " conf
+  if [ "$conf" = Y ] || [ "$conf" = y ]; then
+    msg_out "$dev confirmed..."
+    return 0
+  else
+    return 1
+  fi
+}
+
+chkroot
+
+dev=
+while [ $# -gt 0 ]
+do
+  case "$1" in
+    -h|--help)
+      echo "$help"
+      exit 1
+      ;;
+    *)
+      if [ "$dev" != "" ]; then
+        err_out "invalid option: '$1'"
+        exit 1
+      else
+        dev="$1"
+      fi
+    	;;
+  esac
+  shift
+done
+
+if [ "$dev" = "" ]; then
+  oIFS="$IFS"
+  IFS=$'\n'
+  diskl=($(fdisk -l 2>/dev/null |grep -i '^/dev/.*linux' | grep -iv 'swap') exit)
+
+  PS3="Choose a device (#?): "
+
+  echo "**********************************************************"
+  echo " Please choose the device where your system is installed. "
+  echo " A star (*) sign after the device id means it's bootable  "
+  echo " It is not necessary for a system partition to be bootable"
+  echo " Be carefule. We need the device id where the filesystem  "
+  echo " resides, not where it is booted from.                    "
+  echo "**********************************************************"
+  echo
+  select dev in "${diskl[@]}"; do
+    if [ "$dev" != exit ]; then
+      if [ "$dev" = "" ]; then
+        continue
+      fi
+      dev=$(echo "$dev" | sed -n 's#\(/dev/[^[:blank:]]*\).*#\1#p')
+      msg_out "you have chosen: $dev"
+      if confirm "$dev"; then
+        break
+      fi
+    else
+      wrn_out "Aborted."
+      exit 1
+    fi
+  done
+elif ! confirm "$dev"; then
+  wrn_out "Aborted."
+  exit 1
+fi
+
+umount /mnt  >/dev/null 2>&1 || umount -lf /mnt >/dev/null 2>&1 | true
+mount "$dev" /mnt && msg_out "mounted $dev in /mnt" || err_out "mounting $dev in /mnt failed"
+mount --bind /dev /mnt/dev && msg_out "mounted /dev in /mnt/dev" || err_out "mounting /dev in /mnt/dev failed"
+mount --bind /dev/pts /mnt/dev/pts && msg_out "mounted /dev/pts in /mnt/dev/pts" || err_out "mounting /dev/pts in /mnt/dev/pts failed"
+mount --bind /proc /mnt/proc && msg_out "mounted /proc in /mnt/proc" || err_out "mounting /proc in /mnt/proc failed"
+mount --bind /sys /mnt/sys && msg_out "mounted /sys in /mnt/sys" || err_out "mounting /sys in /mnt/sys failed"
+msg_out "running grub-install ${dev:0:-1} ..."
+chroot /mnt grub-install "${dev:0:-1}"
+msg_out "running update-grub ..."
+chroot /mnt update-grub
+
+if umount /mnt/sys || umount -lf /mnt/sys; then
+  msg_out "unmounted /mnt/sys"
+else
+  wrn_out "unmounting /mnt/sys failed"
+fi
+if umount /mnt/proc || umount -lf /mnt/proc; then
+  msg_out "unmounted /mnt/proc"
+else
+  wrn_out "unmounting /mnt/proc failed"
+fi
+if umount /mnt/dev/pts || umount -lf /mnt/dev/pts; then
+  msg_out "unmounted /mnt/dev/pts"
+else
+  wrn_out "unmounting /mnt/dev/pts failed"
+fi
+if umount /mnt/dev || umount -lf /mnt/dev; then
+  msg_out "unmounted /mnt/dev"
+else
+  wrn_out "unmounting /mnt/dev failed"
+fi
+if umount /mnt || umount -lf /mnt; then
+  msg_out "unmounted /mnt"
+else
+  wrn_out "unmounting /mnt failed"
+fi
