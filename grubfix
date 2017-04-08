@@ -144,7 +144,7 @@ if [ "$dev" = "" ]; then
   echo " Please choose the device where your system is installed. "
   echo " A star (*) sign after the device id means it's bootable  "
   echo " It is not necessary for a system partition to be bootable"
-  echo " Be carefule. We need the device id where the filesystem  "
+  echo " Be careful. We need the device id where the filesystem  "
   echo " resides, not where it is booted from.                    "
   echo "**********************************************************"
   echo

@@ -15,7 +15,7 @@ It will give you a list of partition to select from:
  Please choose the device where your system is installed. 
  A star (*) sign after the device id means it's bootable  
  It is not necessary for a system partition to be bootable
- Be carefule. We need the device id where the filesystem  
+ Be careful. We need the device id where the filesystem  
  resides, not where it is booted from.                    
 **********************************************************
 
