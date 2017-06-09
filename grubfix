@@ -6,7 +6,7 @@
 ###########################################
 
 help="
-****** grubfix (1.0.0) ******
+****** grubfix (1.0.1) ******
 
 SYNOPSIS:
 	grubfix
@@ -179,7 +179,7 @@ if ! $chroot_only; then
 	msg_out "running grub-install ${dev:0:-1} ..."
 	chroot /mnt grub-install "${dev:0:-1}"
 	msg_out "running update-grub ..."
-	chroot /mnt update-grub
+	chroot /mnt grub-mkconfig -o /boot/grub/grub.cfg
 else
 	xhost +
 	x-terminal-emulator -e "$SHELL -c 'chroot /mnt;exec bash;'" >/dev/null 2>&1 ||
