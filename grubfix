@@ -192,9 +192,7 @@ if ! $legacy_mode; then
 
 		echo "***********************************************************"
 		echo " Please choose the uefi boot device."
-		echo " A star (*) sign after the device id means it's bootable."
-		echo " It is not necessary for the partition to be bootable."
-		echo " Be careful. We need the device id where it is booted from,"
+		echo " Be careful, we need the device id where it is booted from,"
 		echo " not where the root filesystem resides."
 		echo "***********************************************************"
 		echo
