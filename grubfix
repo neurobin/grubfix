@@ -1,30 +1,35 @@
 #!/bin/bash
-###########################################
+##################################################
 ### 	   Grub Fix Script 		###
-### Copyright (C) 2017 Md Jahidul Hamid ###
+### Copyright (C) 2017 - 2019 Md Jahidul Hamid ###
 ### 	 Released Under GPL3+		###
-###########################################
+##################################################
 
 help="
-****** grubfix (1.0.1) ******
+****** grubfix (2.0.0) ******
 
 SYNOPSIS:
 	grubfix
 	grubfix [options]
-	grubfix /dev/sdXY
+	grubfix [system: /dev/sdxy] [efi: /dev/sdxy]
 
 USAGE:
-	1st form (gives a menu to select the device): 
+	1st form (gives a menu to select the devices): 
 		grubfix
-	2nd form (takes a device id as parameter):
-		grubfix /dev/sdXY
+	2nd form (takes the system and efi device ids as parameter):
+		grubfix /dev/sdXY /dev/sdXY
 
-Where /dev/sdXY is the device id where your system is installed.
+Where the first /dev/sdXY is the device id where your system is installed.
+and the second one is the efi boot device.
+
+If run in legacy mode, only the first device id is meaningful.
+
 X is a letter and Y is a number, A device id would look like: /dev/sdb1
 
 OPTIONS:
 	-h, --help          : show help menu
 	-co, --chroot-only  : launch chroot terminal
+	-l, --legacy				: Legacy mode (default is uefi)
 "
 
 msg_out(){
@@ -91,7 +96,7 @@ unmount(){
 }
 
 confirm(){
-  dev="$1"
+  local dev="$1"
   msg_out "Giving more info for confirmation"
   msg_out "'fdisk -l $dev' says: \n$(fdisk -l "$dev")"
   msg_out "'blkid $dev' says: \n$(blkid "$dev")"
@@ -110,7 +115,9 @@ chkroot
 trap unmount SIGTERM EXIT SIGQUIT
 
 dev=
+efi_dev=
 chroot_only=false
+legacy_mode=false
 while [ $# -gt 0 ]
 do
   case "$1" in
@@ -121,12 +128,17 @@ do
     -co|--chroot-only)
     	chroot_only=true
     	;;
+    -l|--legacy)
+    	legacy_mode=true
+    	;;
     *)
-      if [ "$dev" != "" ]; then
+      if [ "$dev" != "" ] && [ "$efi_dev" != "" ]; then
         err_out "invalid option: '$1'"
         exit 1
-      else
+      elif [ "$dev" = '' ]; then
         dev="$1"
+			else
+				efi_dev=$1
       fi
     	;;
   esac
@@ -168,6 +180,48 @@ elif ! confirm "$dev"; then
   exit 1
 fi
 
+## Choose efi device
+
+if ! $legacy_mode; then
+	if [ "$efi_dev" = "" ]; then
+		oIFS="$IFS"
+		IFS=$'\n'
+		diskl=($(fdisk -l 2>/dev/null |grep -i 'efi') 'No uefi' exit)
+
+		PS3="Choose a efi device (#?): "
+
+		echo "***********************************************************"
+		echo " Please choose the uefi boot device."
+		echo " A star (*) sign after the device id means it's bootable."
+		echo " It is not necessary for the partition to be bootable."
+		echo " Be careful. We need the device id where it is booted from,"
+		echo " not where the root filesystem resides."
+		echo "***********************************************************"
+		echo
+		select efi_dev in "${diskl[@]}"; do
+			if [ "$efi_dev" != exit ] && [ "$efi_dev" != 'No uefi' ]; then
+				if [ "$efi_dev" = "" ]; then
+					continue
+				fi
+				efi_dev=$(echo "$efi_dev" | sed -n 's#\(/dev/[^[:blank:]]*\).*#\1#p')
+				msg_out "you have chosen: $efi_dev"
+				if confirm "$efi_dev"; then
+					break
+				fi
+			elif [ "$efi_dev" = 'No uefi' ]; then
+				legacy_mode=true
+				break
+			else
+				wrn_out "Aborted."
+				exit 1
+			fi
+		done
+	elif ! confirm "$efi_dev"; then
+		wrn_out "Aborted."
+		exit 1
+	fi
+fi
+
 umount /mnt  >/dev/null 2>&1 || umount -lf /mnt >/dev/null 2>&1 | true
 mount "$dev" /mnt && msg_out "mounted $dev in /mnt" || err_out "mounting $dev in /mnt failed"
 mount --bind /dev /mnt/dev && msg_out "mounted /dev in /mnt/dev" || err_out "mounting /dev in /mnt/dev failed"
@@ -176,10 +230,21 @@ mount --bind /proc /mnt/proc && msg_out "mounted /proc in /mnt/proc" || err_out 
 mount --bind /sys /mnt/sys && msg_out "mounted /sys in /mnt/sys" || err_out "mounting /sys in /mnt/sys failed"
 
 if ! $chroot_only; then
-	msg_out "running grub-install ${dev:0:-1} ..."
-	chroot /mnt grub-install "${dev:0:-1}"
-	msg_out "running update-grub ..."
-	chroot /mnt grub-mkconfig -o /boot/grub/grub.cfg
+  if $legacy_mode; then
+		msg_out "chroot: running grub-install ${dev:0:-1} ..."
+		chroot /mnt grub-install "${dev:0:-1}"
+		msg_out "chroot: running update-grub ..."
+		chroot /mnt grub-mkconfig -o /boot/grub/grub.cfg
+	else
+		msg_out "chroot: running mount $efi_dev /boot/efi ..."
+		chroot /mnt mount $efi_dev /boot/efi
+		msg_out "chroot: running grub-install ..."
+		chroot /mnt grub-install --target=x86_64-efi --efi-directory=/boot/efi
+		msg_out "chroot: running update-grub ..."
+		chroot /mnt grub-mkconfig -o /boot/grub/grub.cfg
+		msg_out "chroot: running umount /boot/efi"
+		chroot /mnt umount /boot/efi
+	fi
 else
 	xhost +
 	x-terminal-emulator -e "$SHELL -c 'chroot /mnt;exec bash;'" >/dev/null 2>&1 ||
